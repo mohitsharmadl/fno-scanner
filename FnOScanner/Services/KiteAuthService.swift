@@ -41,6 +41,7 @@ class KiteAuthService: NSObject, ObservableObject {
     func headlessLogin() async {
         guard settings.hasLoginCredentials else {
             authError = "Missing credentials — fill all fields in Settings > Kite API"
+            print("[AUTH] Missing credentials")
             return
         }
 
@@ -52,6 +53,7 @@ class KiteAuthService: NSObject, ObservableObject {
         let userID = settings.kiteUserID
         let password = settings.kitePassword
         let totpSecret = settings.kiteTOTPSecret
+        print("[AUTH] Starting headless login for \(userID)")
 
         // Shared cookie storage across both sessions
         let cookieStorage = HTTPCookieStorage.shared
@@ -68,7 +70,8 @@ class KiteAuthService: NSObject, ObservableObject {
             let loginURL = "https://kite.trade/connect/login?api_key=\(apiKey)&v=3"
             var req = URLRequest(url: URL(string: loginURL)!)
             req.setValue(ua, forHTTPHeaderField: "User-Agent")
-            let _ = try await session.data(for: req)
+            let (_, step1Resp) = try await session.data(for: req)
+            print("[AUTH] Step 1 OK: \((step1Resp as? HTTPURLResponse)?.statusCode ?? 0)")
 
             // Step 2: POST credentials
             loginStep = "Submitting credentials..."
@@ -92,6 +95,7 @@ class KiteAuthService: NSObject, ObservableObject {
 
             // Step 3: Generate TOTP and submit 2FA
             loginStep = "Submitting TOTP..."
+            print("[AUTH] Step 2 OK: requestID=\(requestID)")
             guard let totpCode = TOTPGenerator.generate(secret: totpSecret) else {
                 authError = "Failed to generate TOTP code"
                 isAuthenticating = false
@@ -115,6 +119,8 @@ class KiteAuthService: NSObject, ObservableObject {
                 return
             }
 
+            print("[AUTH] Step 3 OK: TOTP=\(totpCode)")
+
             // Step 4: Follow redirects to capture request_token
             loginStep = "Getting request token..."
             let redirectDelegate = RedirectCaptureDelegate()
@@ -129,10 +135,12 @@ class KiteAuthService: NSObject, ObservableObject {
             // This will follow redirects until our delegate stops it
             let _ = try? await redirectSession.data(for: redirectReq)
 
+            print("[AUTH] Step 4: capturedLocation=\(redirectDelegate.capturedLocation ?? "nil")")
             guard let capturedURL = redirectDelegate.capturedLocation,
                   let components = URLComponents(string: capturedURL),
                   let requestToken = components.queryItems?.first(where: { $0.name == "request_token" })?.value else {
                 authError = "Could not get request token from Kite redirect"
+                print("[AUTH] FAILED: no request_token in redirect")
                 isAuthenticating = false
                 loginStep = ""
                 return
@@ -140,6 +148,7 @@ class KiteAuthService: NSObject, ObservableObject {
 
             // Step 5: Exchange request_token for access_token
             loginStep = "Exchanging for access token..."
+            print("[AUTH] Step 5: exchanging requestToken=\(requestToken.prefix(10))...")
             await exchangeToken(requestToken: requestToken)
             loginStep = ""
             isAuthenticating = false

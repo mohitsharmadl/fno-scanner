@@ -54,11 +54,15 @@ actor KiteAPIService {
     // MARK: - Fetch FnO Stock List
 
     func fetchFnOStockList() async throws -> [InstrumentInfo] {
-        guard await isAuthenticated() else { throw KiteAPIError.notAuthenticated }
+        guard await isAuthenticated() else {
+            print("[API] fetchFnOStockList: NOT authenticated")
+            throw KiteAPIError.notAuthenticated
+        }
 
         let url = URL(string: "\(baseURL)/instruments/NFO")!
         var request = URLRequest(url: url)
         request.setValue(await authHeader, forHTTPHeaderField: "Authorization")
+        print("[API] fetchFnOStockList: fetching...")
 
         await throttle()
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -67,17 +71,24 @@ actor KiteAPIService {
         guard let csv = String(data: data, encoding: .utf8) else {
             throw KiteAPIError.parseError("Could not decode instruments CSV")
         }
+        print("[API] NFO CSV: \(data.count) bytes, \(csv.components(separatedBy: "\n").count) lines")
 
-        return parseNFOInstruments(csv: csv)
+        let result = parseNFOInstruments(csv: csv)
+        print("[API] NFO parsed: \(result.count) FUT instruments")
+        return result
     }
 
     /// Fetch NSE instrument tokens for given stock symbols
     func fetchNSEInstruments(symbols: Set<String>) async throws -> [String: InstrumentInfo] {
-        guard await isAuthenticated() else { throw KiteAPIError.notAuthenticated }
+        guard await isAuthenticated() else {
+            print("[API] fetchNSEInstruments: NOT authenticated")
+            throw KiteAPIError.notAuthenticated
+        }
 
         let url = URL(string: "\(baseURL)/instruments/NSE")!
         var request = URLRequest(url: url)
         request.setValue(await authHeader, forHTTPHeaderField: "Authorization")
+        print("[API] fetchNSEInstruments: fetching for \(symbols.count) symbols...")
 
         await throttle()
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -86,8 +97,11 @@ actor KiteAPIService {
         guard let csv = String(data: data, encoding: .utf8) else {
             throw KiteAPIError.parseError("Could not decode NSE instruments CSV")
         }
+        print("[API] NSE CSV: \(data.count) bytes, \(csv.components(separatedBy: "\n").count) lines")
 
-        return parseNSEInstruments(csv: csv, filterSymbols: symbols)
+        let result = parseNSEInstruments(csv: csv, filterSymbols: symbols)
+        print("[API] NSE matched: \(result.count) out of \(symbols.count) symbols")
+        return result
     }
 
     // MARK: - Fetch Quotes (batch)
@@ -193,15 +207,21 @@ actor KiteAPIService {
 
     private func parseNFOInstruments(csv: String) -> [InstrumentInfo] {
         let lines = csv.components(separatedBy: "\n")
-        guard lines.count > 1 else { return [] }
+        guard lines.count > 1 else {
+            print("[PARSE] NFO: no lines!")
+            return []
+        }
 
         // Find column indices from header
         let header = lines[0].components(separatedBy: ",")
+        print("[PARSE] NFO header cols: \(header)")
         guard let tokenIdx = header.firstIndex(of: "instrument_token"),
               let symbolIdx = header.firstIndex(of: "tradingsymbol"),
               let nameIdx = header.firstIndex(of: "name"),
               let exchangeIdx = header.firstIndex(of: "exchange"),
               let typeIdx = header.firstIndex(of: "instrument_type") else {
+            print("[PARSE] NFO: header column lookup FAILED")
+            print("[PARSE] NFO: token=\(header.firstIndex(of: "instrument_token") as Any), symbol=\(header.firstIndex(of: "tradingsymbol") as Any), name=\(header.firstIndex(of: "name") as Any), exchange=\(header.firstIndex(of: "exchange") as Any), type=\(header.firstIndex(of: "instrument_type") as Any)")
             return []
         }
 
