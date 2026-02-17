@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MainView: View {
     @EnvironmentObject var viewModel: ScannerViewModel
-    @State private var showLoginSheet = false
+    @State private var hasAttemptedAutoLogin = false
 
     var body: some View {
         NavigationSplitView {
@@ -22,31 +22,72 @@ struct MainView: View {
                 toolbarContent
             }
         }
-        .sheet(isPresented: $showLoginSheet) {
-            KiteLoginSheet()
-                .environmentObject(viewModel)
-        }
         .onAppear {
+            guard !hasAttemptedAutoLogin else { return }
+            hasAttemptedAutoLogin = true
             viewModel.authService.checkTokenValidity()
+
+            // Auto-login if token expired and credentials exist
+            if !viewModel.authService.isAuthenticated && viewModel.settings.autoLoginOnLaunch && viewModel.settings.hasLoginCredentials {
+                Task {
+                    await viewModel.authService.headlessLogin()
+                    if viewModel.authService.isAuthenticated && viewModel.settings.autoScanAfterLogin {
+                        viewModel.startScan()
+                    }
+                }
+            } else if viewModel.authService.isAuthenticated && viewModel.settings.autoScanAfterLogin && viewModel.scanResults.isEmpty {
+                viewModel.startScan()
+            }
         }
     }
 
     @ViewBuilder
     private var toolbarContent: some View {
-        // Auth status indicator
-        HStack(spacing: 4) {
-            Circle()
-                .fill(viewModel.authService.isAuthenticated ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
-            Text(viewModel.authService.isAuthenticated ? "Connected" : "Not logged in")
-                .font(.caption)
-                .foregroundColor(.secondary)
+        // Auth status
+        if viewModel.authService.isAuthenticating {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text(viewModel.authService.loginStep)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        } else {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(viewModel.authService.isAuthenticated ? Color.green : Color.red)
+                    .frame(width: 8, height: 8)
+                Text(viewModel.authService.isAuthenticated ? "Connected" : "Disconnected")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
 
-        if !viewModel.authService.isAuthenticated {
-            Button("Login") {
-                showLoginSheet = true
+        // Login / Refresh token button
+        if !viewModel.authService.isAuthenticated && !viewModel.authService.isAuthenticating {
+            Button {
+                Task {
+                    await viewModel.authService.headlessLogin()
+                    if viewModel.authService.isAuthenticated && viewModel.settings.autoScanAfterLogin {
+                        viewModel.startScan()
+                    }
+                }
+            } label: {
+                Label("Login", systemImage: "key.fill")
             }
+            .disabled(!viewModel.settings.hasLoginCredentials)
+            .help(viewModel.settings.hasLoginCredentials ? "Login to Kite" : "Set credentials in Settings first")
+        }
+
+        if viewModel.authService.isAuthenticated {
+            Button {
+                Task {
+                    await viewModel.authService.headlessLogin()
+                }
+            } label: {
+                Label("Refresh Token", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .help("Get a fresh Kite token")
         }
 
         Divider()
@@ -55,7 +96,7 @@ struct MainView: View {
         Button {
             viewModel.startScan()
         } label: {
-            Label("Scan", systemImage: "arrow.clockwise")
+            Label("Scan", systemImage: "magnifyingglass")
         }
         .disabled(viewModel.isScanning || !viewModel.authService.isAuthenticated)
 
@@ -65,117 +106,6 @@ struct MainView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-    }
-}
-
-// MARK: - Kite Login Sheet
-
-struct KiteLoginSheet: View {
-    @EnvironmentObject var viewModel: ScannerViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var requestToken = ""
-
-    private var loginURL: String {
-        "https://kite.trade/connect/login?api_key=\(viewModel.settings.kiteAPIKey)&v=3"
-    }
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Login to Kite")
-                .font(.title2.bold())
-
-            // Step 1
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Step 1: Open Kite login in browser")
-                    .font(.headline)
-                Button("Open Kite Login") {
-                    if let url = URL(string: loginURL) {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Divider()
-
-            // Step 2
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Step 2: After login, copy the request_token from the redirect URL")
-                    .font(.headline)
-                Text("The URL will look like:\nhttp://127.0.0.1/?request_token=xxxxxxxx&action=login")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .textSelection(.enabled)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Divider()
-
-            // Step 3
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Step 3: Paste the request_token (or the full URL)")
-                    .font(.headline)
-                TextField("request_token or full redirect URL", text: $requestToken)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-
-                if let error = viewModel.authService.authError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-
-                Spacer()
-
-                Button("Connect") {
-                    let token = extractRequestToken(from: requestToken)
-                    viewModel.authService.exchangeManualToken(requestToken: token)
-
-                    // Observe for success and dismiss
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if viewModel.authService.isAuthenticated {
-                            dismiss()
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(requestToken.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.authService.isAuthenticating)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(24)
-        .frame(width: 500)
-    }
-
-    /// Extract request_token from either a raw token or a full URL
-    private func extractRequestToken(from input: String) -> String {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // If it looks like a URL, parse out the request_token param
-        if trimmed.contains("request_token=") {
-            if let components = URLComponents(string: trimmed),
-               let token = components.queryItems?.first(where: { $0.name == "request_token" })?.value {
-                return token
-            }
-            // Fallback: regex-style extraction
-            if let range = trimmed.range(of: "request_token=") {
-                let after = trimmed[range.upperBound...]
-                let token = after.prefix(while: { $0 != "&" && $0 != " " })
-                return String(token)
-            }
-        }
-
-        // Otherwise treat the whole input as the token
-        return trimmed
     }
 }
 
@@ -228,6 +158,14 @@ struct SidebarView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                }
+            }
+
+            if let error = viewModel.authService.authError {
+                Section("Error") {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
                 }
             }
 

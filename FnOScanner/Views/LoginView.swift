@@ -13,7 +13,6 @@ struct LoginView: View {
             Text("Kite Authentication")
                 .font(.title2.bold())
 
-            // Status
             HStack(spacing: 8) {
                 Circle()
                     .fill(viewModel.authService.isAuthenticated ? Color.green : Color.red)
@@ -29,6 +28,16 @@ struct LoginView: View {
                     .foregroundColor(.secondary)
             }
 
+            if viewModel.authService.isAuthenticating {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text(viewModel.authService.loginStep)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             if let error = viewModel.authService.authError {
                 Text(error)
                     .font(.caption)
@@ -41,8 +50,8 @@ struct LoginView: View {
                 .frame(width: 200)
 
             if !viewModel.authService.isAuthenticated {
-                if settings.kiteAPIKey.isEmpty {
-                    Text("Set API credentials in Settings first")
+                if !settings.hasLoginCredentials {
+                    Text("Set credentials in Settings > Kite API")
                         .font(.caption)
                         .foregroundColor(.orange)
 
@@ -51,14 +60,16 @@ struct LoginView: View {
                     }
                 } else {
                     Button {
-                        viewModel.authService.login()
+                        Task {
+                            await viewModel.authService.headlessLogin()
+                        }
                     } label: {
                         HStack {
                             if viewModel.authService.isAuthenticating {
                                 ProgressView()
                                     .scaleEffect(0.7)
                             }
-                            Text("Login with Kite")
+                            Text("Login to Kite")
                         }
                         .frame(width: 160)
                     }
@@ -72,7 +83,7 @@ struct LoginView: View {
                 .buttonStyle(.bordered)
             }
 
-            Text("Token expires daily at midnight.\nRe-login each morning before trading.")
+            Text("Auto-login is \(settings.autoLoginOnLaunch ? "ON" : "OFF").\nTokens expire daily at midnight IST.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

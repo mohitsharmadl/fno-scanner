@@ -14,6 +14,7 @@
 		7A4FA5A9C2A2D06BB77DC521 /* ScannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED16E859CDE856CF98DA31E /* ScannerService.swift */; };
 		8E997051228CB5A905D32424 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0422CEC3394C0934318E12F6 /* LoginView.swift */; };
 		A45A2D061ED3788A59AFC720 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF88A9251E052D016AE9FD4C /* SettingsView.swift */; };
+		AA3F913C6B89E69BDE0B84EA /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82A14F32855EAEE105BDEEBC /* TOTPGenerator.swift */; };
 		B5C08976BE40C4B0127C7AE6 /* ScannerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900A3F943805045D5D5945BE /* ScannerViewModel.swift */; };
 		B7A1B547E1612816C54A7492 /* AnalysisEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928F91CBA48C94985867CFC7 /* AnalysisEngine.swift */; };
 		DCE30E24F80C302BFF72CAFD /* ScanResultsTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67489AFF69CD85ABE564F609 /* ScanResultsTable.swift */; };
@@ -33,6 +34,7 @@
 		2BBEB46F8B90DD50E407C550 /* KiteAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteAPIService.swift; sourceTree = "<group>"; };
 		2ED16E859CDE856CF98DA31E /* ScannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerService.swift; sourceTree = "<group>"; };
 		67489AFF69CD85ABE564F609 /* ScanResultsTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultsTable.swift; sourceTree = "<group>"; };
+		82A14F32855EAEE105BDEEBC /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		8A0B752964E04347CEBCEEA8 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
 		900A3F943805045D5D5945BE /* ScannerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerViewModel.swift; sourceTree = "<group>"; };
 		928F91CBA48C94985867CFC7 /* AnalysisEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEngine.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 				2BBEB46F8B90DD50E407C550 /* KiteAPIService.swift */,
 				2094B686A327F06CC0AC1D12 /* KiteAuthService.swift */,
 				2ED16E859CDE856CF98DA31E /* ScannerService.swift */,
+				82A14F32855EAEE105BDEEBC /* TOTPGenerator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -206,6 +209,7 @@
 				A45A2D061ED3788A59AFC720 /* SettingsView.swift in Sources */,
 				F872DEEDFD86EA99F087E28D /* Stock.swift in Sources */,
 				47BF25BFC2097DCA87939A77 /* StockDetailView.swift in Sources */,
+				AA3F913C6B89E69BDE0B84EA /* TOTPGenerator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

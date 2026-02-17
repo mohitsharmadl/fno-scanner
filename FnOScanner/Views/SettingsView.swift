@@ -4,10 +4,6 @@ struct SettingsView: View {
     @EnvironmentObject var viewModel: ScannerViewModel
     @ObservedObject private var settings = AppSettings.shared
 
-    @State private var apiKey: String = ""
-    @State private var apiSecret: String = ""
-    @State private var showSecret = false
-
     var body: some View {
         TabView {
             scanSettingsTab
@@ -19,12 +15,13 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Kite API", systemImage: "key.fill")
                 }
+
+            behaviorTab
+                .tabItem {
+                    Label("Behavior", systemImage: "gearshape")
+                }
         }
-        .frame(width: 480, height: 500)
-        .onAppear {
-            apiKey = settings.kiteAPIKey
-            apiSecret = settings.kiteAPISecret
-        }
+        .frame(width: 500, height: 560)
     }
 
     // MARK: - Scan Settings
@@ -125,62 +122,121 @@ struct SettingsView: View {
 
     // MARK: - Kite Credentials
 
+    @State private var showPassword = false
+    @State private var showSecret = false
+    @State private var showTOTP = false
+
     private var kiteCredentialsTab: some View {
         Form {
-            Section("Kite Connect Credentials") {
-                TextField("API Key", text: $apiKey)
+            Section("Kite Connect API") {
+                TextField("API Key", text: $settings.kiteAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
 
                 HStack {
                     if showSecret {
-                        TextField("API Secret", text: $apiSecret)
+                        TextField("API Secret", text: $settings.kiteAPISecret)
                             .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
                     } else {
-                        SecureField("API Secret", text: $apiSecret)
+                        SecureField("API Secret", text: $settings.kiteAPISecret)
                             .textFieldStyle(.roundedBorder)
                     }
-                    Button {
-                        showSecret.toggle()
-                    } label: {
+                    Button { showSecret.toggle() } label: {
                         Image(systemName: showSecret ? "eye.slash" : "eye")
                     }
                     .buttonStyle(.borderless)
                 }
             }
 
+            Section("Zerodha Login (for auto-login)") {
+                TextField("User ID", text: $settings.kiteUserID)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+
+                HStack {
+                    if showPassword {
+                        TextField("Password", text: $settings.kitePassword)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                    } else {
+                        SecureField("Password", text: $settings.kitePassword)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Button { showPassword.toggle() } label: {
+                        Image(systemName: showPassword ? "eye.slash" : "eye")
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                HStack {
+                    if showTOTP {
+                        TextField("TOTP Secret (base32)", text: $settings.kiteTOTPSecret)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                    } else {
+                        SecureField("TOTP Secret (base32)", text: $settings.kiteTOTPSecret)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Button { showTOTP.toggle() } label: {
+                        Image(systemName: showTOTP ? "eye.slash" : "eye")
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                Text("TOTP secret is the base32 key from your Zerodha 2FA setup (NOT the 6-digit code)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             Section {
                 HStack {
-                    Button("Save") {
-                        settings.kiteAPIKey = apiKey
-                        settings.kiteAPISecret = apiSecret
-                    }
-                    .buttonStyle(.borderedProminent)
-
                     if settings.isTokenValid {
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
-                            Text("Token valid")
+                            Text("Token valid until midnight")
+                                .font(.caption)
+                        }
+                    } else if settings.hasLoginCredentials {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Token expired — click Login in toolbar or relaunch app")
+                                .font(.caption)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                            Text("Fill all fields above to enable auto-login")
                                 .font(.caption)
                         }
                     }
                 }
 
-                Text("Credentials are stored securely in macOS Keychain")
+                Text("Credentials are stored in app preferences. All login happens locally on your Mac.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
 
-            Section("Setup Instructions") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("1. Log in to Kite Connect developer portal")
-                    Text("2. Copy your API Key and Secret")
-                    Text("3. Paste them above and click Save")
-                    Text("4. Use the Login button in the toolbar to authenticate")
-                    Text("5. You'll need to re-login daily (tokens expire at midnight)")
-                }
-                .font(.caption)
-                .foregroundColor(.secondary)
+    // MARK: - Behavior
+
+    private var behaviorTab: some View {
+        Form {
+            Section("On Launch") {
+                Toggle("Auto-login to Kite if token expired", isOn: $settings.autoLoginOnLaunch)
+                Toggle("Auto-scan after successful login", isOn: $settings.autoScanAfterLogin)
+            }
+
+            Section {
+                Text("When both are enabled, the app will automatically login and start scanning every time you open it. No manual steps needed.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)

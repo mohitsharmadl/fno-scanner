@@ -58,11 +58,19 @@ class ScannerService: ObservableObject {
                 let nfoInstruments = try await api.fetchFnOStockList()
                 let symbols = Array(Set(nfoInstruments.map(\.name))).sorted()
                 cachedFnOSymbols = symbols
+                print("📊 NFO FUT stocks found: \(symbols.count)")
 
                 // Step 2: Map to NSE instrument tokens
                 let nseInstruments = try await api.fetchNSEInstruments(symbols: Set(symbols))
                 cachedNSEInstruments = nseInstruments
                 cacheDate = Date()
+                print("📊 NSE EQ instruments matched: \(nseInstruments.count) out of \(symbols.count)")
+
+                // Log any symbols that didn't match
+                let unmatched = symbols.filter { nseInstruments[$0] == nil }
+                if !unmatched.isEmpty {
+                    print("⚠️ Unmatched symbols (\(unmatched.count)): \(unmatched.prefix(10).joined(separator: ", "))\(unmatched.count > 10 ? "..." : "")")
+                }
             }
 
             let symbols = cachedFnOSymbols.filter { cachedNSEInstruments[$0] != nil }
@@ -80,6 +88,7 @@ class ScannerService: ObservableObject {
             let fromDate = Calendar.current.date(byAdding: .day, value: -400, to: Date())!
             let toDate = Date()
 
+            var failedCount = 0
             for (idx, symbol) in symbols.enumerated() {
                 progress = .fetchingHistorical(current: idx + 1, total: total)
                 statusMessage = "Fetching history: \(symbol) (\(idx + 1)/\(total))"
@@ -102,14 +111,24 @@ class ScannerService: ObservableObject {
                         cachedHistorical[symbol] = (candles, Date())
                     } catch KiteAPIError.rateLimited {
                         // Wait and retry once
-                        statusMessage = "Rate limited, waiting... (\(symbol))"
-                        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 sec
-                        candles = try await api.fetchHistoricalData(
-                            instrumentToken: instrument.instrumentToken,
-                            from: fromDate,
-                            to: toDate
-                        )
-                        cachedHistorical[symbol] = (candles, Date())
+                        statusMessage = "Rate limited, waiting 2s... (\(symbol))"
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        do {
+                            candles = try await api.fetchHistoricalData(
+                                instrumentToken: instrument.instrumentToken,
+                                from: fromDate,
+                                to: toDate
+                            )
+                            cachedHistorical[symbol] = (candles, Date())
+                        } catch {
+                            print("⚠️ Failed to fetch \(symbol) after retry: \(error)")
+                            failedCount += 1
+                            continue
+                        }
+                    } catch {
+                        print("⚠️ Failed to fetch \(symbol): \(error)")
+                        failedCount += 1
+                        continue
                     }
                 }
 
@@ -138,7 +157,9 @@ class ScannerService: ObservableObject {
                 .sorted { $0.score > $1.score }
 
             progress = .done
-            statusMessage = "Scan complete. \(results.filter { $0.score > 0 }.count) stocks flagged."
+            let flagged = results.filter { $0.score > 0 }.count
+            let failMsg = failedCount > 0 ? " (\(failedCount) failed)" : ""
+            statusMessage = "Scan complete. \(flagged) flagged out of \(stocks.count) stocks.\(failMsg)"
 
             return results
 

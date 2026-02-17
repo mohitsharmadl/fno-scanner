@@ -15,6 +15,16 @@ class AppSettings: ObservableObject {
     @AppStorage("kiteAPIKey") var kiteAPIKey: String = ""
     @AppStorage("kiteAPISecret") var kiteAPISecret: String = ""
     @AppStorage("kiteAccessToken") var kiteAccessToken: String = ""
+    @AppStorage("kiteUserID") var kiteUserID: String = ""
+    @AppStorage("kitePassword") var kitePassword: String = ""
+    @AppStorage("kiteTOTPSecret") var kiteTOTPSecret: String = ""
+    @AppStorage("autoLoginOnLaunch") var autoLoginOnLaunch: Bool = true
+    @AppStorage("autoScanAfterLogin") var autoScanAfterLogin: Bool = true
+
+    var hasLoginCredentials: Bool {
+        !kiteAPIKey.isEmpty && !kiteAPISecret.isEmpty &&
+        !kiteUserID.isEmpty && !kitePassword.isEmpty && !kiteTOTPSecret.isEmpty
+    }
 
     var kiteAccessTokenDate: Date? {
         get {

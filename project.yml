@@ -39,5 +39,5 @@ targets:
     entitlements:
       path: FnOScanner/FnOScanner.entitlements
       properties:
-        com.apple.security.app-sandbox: true
+        com.apple.security.app-sandbox: false
         com.apple.security.network.client: true
